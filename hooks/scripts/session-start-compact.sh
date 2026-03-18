@@ -25,9 +25,11 @@ if [ -f "${CWD}/autoresearch.jsonl" ]; then
   RECENT=$(tail -10 "${CWD}/autoresearch.jsonl" 2>/dev/null || echo "")
 fi
 
-# Read current iteration from state
-ITERATION=$(grep -oP '^iteration:\s*\K[0-9]+' "$STATE_FILE" 2>/dev/null || echo "0")
-MAX_ITERATIONS=$(grep -oP '^max_iterations:\s*\K[0-9]+' "$STATE_FILE" 2>/dev/null || echo "50")
+# Read current iteration from state (macOS-compatible, no grep -P)
+ITERATION=$(sed -n 's/^iteration:[[:space:]]*\([0-9]*\)/\1/p' "$STATE_FILE" 2>/dev/null)
+ITERATION="${ITERATION:-0}"
+MAX_ITERATIONS=$(sed -n 's/^max_iterations:[[:space:]]*\([0-9]*\)/\1/p' "$STATE_FILE" 2>/dev/null)
+MAX_ITERATIONS="${MAX_ITERATIONS:-50}"
 
 # Build context injection
 CONTEXT="<AUTORESEARCH_CONTEXT_RESTORED>

@@ -25,10 +25,13 @@ if [ ! -f "$STATE_FILE" ]; then
   exit 0
 fi
 
-# Parse state file frontmatter
-ITERATION=$(grep -oP '^iteration:\s*\K[0-9]+' "$STATE_FILE" 2>/dev/null || echo "0")
-MAX_ITERATIONS=$(grep -oP '^max_iterations:\s*\K[0-9]+' "$STATE_FILE" 2>/dev/null || echo "50")
-ACTIVE=$(grep -oP '^active:\s*\K\w+' "$STATE_FILE" 2>/dev/null || echo "false")
+# Parse state file frontmatter (macOS-compatible, no grep -P)
+ITERATION=$(sed -n 's/^iteration:[[:space:]]*\([0-9]*\)/\1/p' "$STATE_FILE" 2>/dev/null)
+ITERATION="${ITERATION:-0}"
+MAX_ITERATIONS=$(sed -n 's/^max_iterations:[[:space:]]*\([0-9]*\)/\1/p' "$STATE_FILE" 2>/dev/null)
+MAX_ITERATIONS="${MAX_ITERATIONS:-50}"
+ACTIVE=$(sed -n 's/^active:[[:space:]]*\([a-z]*\)/\1/p' "$STATE_FILE" 2>/dev/null)
+ACTIVE="${ACTIVE:-false}"
 
 # Guard 3: Must be active
 if [ "$ACTIVE" != "true" ]; then
@@ -43,7 +46,7 @@ fi
 
 # Check for completion promise in last assistant message
 LAST_MSG=$(echo "$HOOK_INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('last_assistant_message',''))" 2>/dev/null || echo "")
-if echo "$LAST_MSG" | perl -0777 -ne 'exit(/<promise>AUTORESEARCH_COMPLETE<\/promise>/ ? 0 : 1)' 2>/dev/null; then
+if echo "$LAST_MSG" | grep -q '<promise>AUTORESEARCH_COMPLETE</promise>' 2>/dev/null; then
   rm -f "$STATE_FILE"
   exit 0
 fi
