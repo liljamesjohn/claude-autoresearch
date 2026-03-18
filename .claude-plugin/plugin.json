@@ -1,0 +1,19 @@
+{
+  "name": "autoresearch",
+  "version": "0.1.0",
+  "description": "Autonomous experiment loop for Claude Code — try ideas, measure results, keep what works, discard what doesn't, repeat forever.",
+  "author": {
+    "name": "James",
+    "url": "https://github.com/liljamesjohn"
+  },
+  "repository": "https://github.com/liljamesjohn/claude-autoresearch",
+  "license": "MIT",
+  "keywords": [
+    "autoresearch",
+    "optimization",
+    "experiment",
+    "autonomous",
+    "benchmark",
+    "performance"
+  ]
+}
