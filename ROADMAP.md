@@ -147,17 +147,9 @@ Pre-built configs for common optimization targets (test speed, bundle size, API 
 
 ## Known Bugs
 
-| Issue | Severity | File |
-|-------|----------|------|
-| `git clean -fd` in revert can destroy user's untracked files (`.env.local`) | **High** | `hooks/scripts/revert-experiment.sh` |
-| `session-start-compact.sh` doesn't check `active` flag — could re-inject context for a stopped session | Low | `hooks/scripts/session-start-compact.sh` |
-| `pre-compact.sh` doesn't check `active` flag | Low | `hooks/scripts/pre-compact.sh` |
-| Frontmatter parsing duplicated across 3 scripts (DRY violation) | Low | stop-hook.sh, session-start-compact.sh, session-start-resume.sh |
-| `log-experiment.sh` silently coerces bad metrics to 0.0 | Medium | `hooks/scripts/log-experiment.sh` |
-| README plugin structure missing `log-experiment.sh` and `session-start-resume.sh` | Low | `README.md` |
-| Empty `skills/autoresearch/references/` directory | Trivial | — |
-| Status command overlap: `/autoresearch status` (SKILL.md) vs `/autoresearch-status` (command) have inconsistent format specs | Low | SKILL.md, commands/autoresearch-status.md |
-| Stop hook iteration counter starts at 0, increments before experiment runs — "iteration 1" = end of setup, not first experiment | Low | `hooks/scripts/stop-hook.sh` |
+All 9 bugs from the initial review have been fixed. Worktree enforcement (mandatory since v0.1.0) eliminates the entire class of "user file destruction" risks.
+
+No known bugs at this time.
 
 ---
 

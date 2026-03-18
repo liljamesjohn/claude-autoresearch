@@ -41,6 +41,17 @@ parse_state_file() {
   STATE_ACTIVE="${STATE_ACTIVE:-false}"
 }
 
+# --- Worktree Detection ---
+
+# Check if a directory is a git worktree (not the main checkout).
+# In a worktree, .git is a FILE (containing "gitdir: ...").
+# In the main checkout, .git is a DIRECTORY.
+# Returns 0 if in a worktree, 1 if not.
+# Usage: is_worktree "/path/to/dir" && echo "yes"
+is_worktree() {
+  [ -f "${1:-.}/.git" ]
+}
+
 # --- Path Helpers ---
 
 # Resolve the state file path from a cwd.

@@ -32,11 +32,23 @@ Works for any optimization target: test speed, bundle size, algorithm performanc
 
 ### Start a new session
 
-```
+Autoresearch **requires** a git worktree for safety. Start one, then invoke the skill:
+
+```bash
+# Start a worktree session (Claude Code creates the branch automatically)
+claude -w autoresearch-fifo
+
+# Inside the session, start the loop
 /autoresearch optimize FIFO lot matching speed
 ```
 
-Claude will ask about the benchmark command, metric, files in scope, and quality gates — then start looping.
+Claude will ask about the benchmark command, metric, files in scope, and quality gates — then start looping. Your main checkout is completely untouched.
+
+Meanwhile, in another terminal, you can keep working normally:
+
+```bash
+claude  # your normal session on main
+```
 
 ### Check progress
 
@@ -72,30 +84,18 @@ The experiment loop is prompt-driven, not code-driven. The skill prompt (`skills
 
 ### Safety model
 
-Everything happens on a **dedicated branch** (`autoresearch/<goal>-<date>`). Your main branch is never touched.
+**Worktree isolation is mandatory.** Every autoresearch session runs in a dedicated git worktree — a physically separate copy of the repo. Your main checkout, working files, `.env`, IDE configs, and in-progress work are never touched.
+
+The plugin will refuse to start if not in a worktree.
 
 | Threat | Protection |
 |--------|------------|
+| Experiment damages user's code | **Worktree isolation** — main checkout is physically untouched |
 | Loop runs forever | Max iteration cap (default 50) + `Ctrl+C` |
 | Bad experiment breaks code | Git revert on discard — last good commit restored |
 | Context fills up | SessionStart hook re-injects `autoresearch.md` after compaction |
 | Agent stops unexpectedly | Stop hook keeps the loop running |
-| Session files lost on revert | Protected files are staged before git revert |
-
-### Worktree support
-
-For maximum safety, run in a git worktree:
-
-```bash
-# Terminal 1: keep working normally
-claude
-
-# Terminal 2: autoresearch runs in isolation
-claude -w autoresearch-session
-> /autoresearch optimize test speed
-```
-
-Two completely independent working directories, same repo. You can develop on main while autoresearch optimizes in the background.
+| Session files lost on revert | Protected files are backed up before git revert |
 
 ### Files created in your project
 

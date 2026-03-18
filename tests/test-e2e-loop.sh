@@ -66,33 +66,51 @@ assert_file_not_exists() {
   fi
 }
 
-# === SETUP: Create a temp git repo from the toy project ===
-TEST_DIR=$(mktemp -d)
-cp -r "$FIXTURE"/* "$TEST_DIR/"
-cd "$TEST_DIR"
+# === SETUP: Create a main repo, then a worktree (simulating `claude -w`) ===
+MAIN_REPO=$(mktemp -d)
+cp -r "$FIXTURE"/* "$MAIN_REPO/"
+cd "$MAIN_REPO"
 git init -q
 git checkout -b main 2>/dev/null || true
 git add -A
 git commit -q -m "initial commit"
 
+# Create a worktree — this is what `claude -w autoresearch-sort` does
+WORKTREE_DIR=$(mktemp -d)
+rm -rf "$WORKTREE_DIR"  # git worktree add needs a non-existent path
+git worktree add "$WORKTREE_DIR" -b autoresearch/sort-speed 2>/dev/null
+
+# All work happens in the worktree
+TEST_DIR="$WORKTREE_DIR"
+cd "$TEST_DIR"
+
 cleanup() {
   cd /
-  rm -rf "$TEST_DIR"
+  git -C "$MAIN_REPO" worktree remove "$WORKTREE_DIR" --force 2>/dev/null || true
+  rm -rf "$MAIN_REPO" "$WORKTREE_DIR"
 }
 trap cleanup EXIT
 
 echo "============================================"
 echo "E2E Test: Full Autoresearch Loop Lifecycle"
-echo "Working dir: $TEST_DIR"
+echo "Main repo: $MAIN_REPO"
+echo "Worktree:  $TEST_DIR"
 echo "============================================"
 echo ""
 
 # === Phase 1: Setup (what the skill would do) ===
 echo "Phase 1: Setup"
 
-# Create autoresearch branch
-git checkout -b autoresearch/sort-speed-2026-03-18 2>/dev/null
-assert_equals "autoresearch/sort-speed-2026-03-18" "$(git branch --show-current)" "on autoresearch branch"
+# Verify we're in a worktree (.git is a file, not a directory)
+TESTS=$((TESTS + 1))
+if [ -f .git ]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: running in a worktree (.git is a file)"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: not in a worktree (.git should be a file)"
+fi
+assert_equals "autoresearch/sort-speed" "$(git branch --show-current)" "on worktree branch"
 
 # Write session files
 cat > autoresearch.md << 'EOF'
@@ -401,6 +419,34 @@ assert_contains "sorted()" "$LAST_COMMIT_MSG" "last commit is the kept optimizat
 # The discarded experiment should NOT be in the git history
 DISCARD_IN_HISTORY=$(git log --oneline --all | grep -c "reversed" || true)
 assert_equals "0" "$DISCARD_IN_HISTORY" "discarded experiment not in git history"
+
+echo ""
+
+# === Phase 10: Worktree isolation verification ===
+echo "Phase 10: Main repo untouched"
+
+# The main repo should have exactly 1 commit (the initial one)
+MAIN_COMMITS=$(git -C "$MAIN_REPO" log --oneline main | wc -l | tr -d ' ')
+assert_equals "1" "$MAIN_COMMITS" "main repo has only initial commit"
+
+# Main repo should not have autoresearch files
+TESTS=$((TESTS + 1))
+if [ ! -f "${MAIN_REPO}/autoresearch.md" ]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: main repo has no autoresearch.md"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: autoresearch.md leaked to main repo"
+fi
+
+TESTS=$((TESTS + 1))
+if [ ! -f "${MAIN_REPO}/autoresearch.jsonl" ]; then
+  PASS=$((PASS + 1))
+  echo "  PASS: main repo has no autoresearch.jsonl"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: autoresearch.jsonl leaked to main repo"
+fi
 
 echo ""
 

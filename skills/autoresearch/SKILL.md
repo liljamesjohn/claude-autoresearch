@@ -17,19 +17,35 @@ Autonomous experiment loop: try ideas, keep what works, discard what doesn't, ne
 - `/autoresearch off` — deactivate the loop (stop hook stops blocking)
 - `/autoresearch clear` — delete `autoresearch.jsonl` and reset all state
 
+## Safety Principle
+
+**Autoresearch MUST run in a git worktree.** This is a strict requirement, not a suggestion. The worktree isolates all experiments from the user's main checkout — no files outside the worktree are ever at risk.
+
+Before doing anything else, verify you are in a worktree:
+
+```bash
+# .git is a FILE in worktrees, a DIRECTORY in main checkouts
+if [ -d .git ]; then
+  echo "ERROR: autoresearch must run in a git worktree."
+  echo "Start with: claude -w autoresearch-<name>"
+fi
+```
+
+If not in a worktree, tell the user to restart with `claude -w <name>` and stop.
+
 ## Setup
 
 When starting a new session:
 
-1. **Gather info** — ask or infer from context:
+1. **Verify worktree** — run the check above. Do not proceed if not in a worktree.
+
+2. **Gather info** — ask or infer from context:
    - **Goal**: what are we optimizing? (e.g., "FIFO lot matching speed")
    - **Command**: the benchmark command (e.g., `bun run bench:fifo`)
    - **Metric**: name, unit, and direction (e.g., `recalc_us`, microseconds, lower is better)
    - **Files in scope**: which files may be modified
    - **Quality gate** (optional): correctness checks command (e.g., `bun run test`)
    - **Constraints**: hard rules (no new deps, specific files off-limits, etc.)
-
-2. **Create branch**: `git checkout -b autoresearch/<goal-slug>-<date>`
 
 3. **Read source files deeply** before writing anything. Understand the workload.
 
