@@ -11,7 +11,8 @@
   "plugins": [
     {
       "name": "autoresearch",
-      "source": ".",
+      "source": "./",
+      "strict": false,
       "description": "Autonomous experiment loop — try ideas, measure results, keep what works, discard what doesn't, repeat forever.",
       "version": "0.1.0",
       "author": { "name": "James" },
