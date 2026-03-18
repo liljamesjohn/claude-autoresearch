@@ -171,7 +171,7 @@ ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/log-experiment.sh . result 1 <baseline_metri
 
 Each iteration:
 
-1. **Review context**: read `autoresearch.md` (especially "What's Been Tried"), check git log for recent experiments, check `autoresearch.ideas.md` if it exists
+1. **Review context**: check the system message for the current **search strategy** (explore/exploit/combine/ablation). Read `autoresearch.md` (especially "What's Been Tried"), check git log for recent experiments, check `autoresearch.ideas.md` if it exists
 2. **Form a hypothesis**: decide what to try next. Prefer ideas that are structurally different from recent failures.
 3. **Edit files**: make the code change
 4. **Run benchmark**: `./autoresearch.sh`
@@ -218,6 +218,44 @@ ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/log-experiment.sh . result <run_number> <met
 - **Signal completion** when you've genuinely exhausted all ideas and further experiments would be unproductive. Emit `<promise>AUTORESEARCH_COMPLETE</promise>` in your message. The stop hook will detect this and cleanly terminate the loop.
 
 **NEVER STOP.** The user may be away for hours.
+
+## Search Strategy
+
+The stop hook computes an adaptive search strategy based on experiment history and includes it in the system message each turn. Adapt your approach:
+
+- **explore** (default): try novel, diverse ideas. Prefer untried approaches. Be creative.
+- **exploit**: the keep rate is high — refine the current best. Make small, incremental tweaks. Don't try anything radical.
+- **combine**: multiple near-misses exist (experiments that almost beat the best). Merge the top 2-3 best ideas into a single experiment.
+- **ablation**: many consecutive failures with no near-misses. Remove components one at a time from the current best to find what's actually driving the gain. Simplify.
+
+Check the system message at the start of each iteration for the current strategy and reason.
+
+## Profiling (optional)
+
+For performance optimization targets, create `autoresearch.profile.sh` during setup. Run it once after the baseline to capture profiling data, then add a `## Profiling Hotspots` section to `autoresearch.md`.
+
+Example `autoresearch.profile.sh` for Python:
+```bash
+#!/bin/bash
+set -euo pipefail
+python3 -c "
+import cProfile, pstats, io
+# Import and run your target
+from sort import sort_numbers
+import random
+random.seed(42)
+data = random.sample(range(100000), 5000)
+pr = cProfile.Profile()
+pr.enable()
+for _ in range(3): sort_numbers(data)
+pr.disable()
+s = io.StringIO()
+pstats.Stats(pr, stream=s).sort_stats('cumulative').print_stats(15)
+print(s.getvalue())
+"
+```
+
+Add the output to autoresearch.md as a hotspot table. Re-profile after significant kept experiments to check if the bottleneck has moved.
 
 ## Guardrails
 

@@ -81,8 +81,20 @@ if [ -z "$PROMPT" ]; then
   PROMPT="Continue the autoresearch experiment loop. Read autoresearch.md and autoresearch.jsonl for context."
 fi
 
+# Compute adaptive search strategy from experiment history
+STRATEGY_MODE="explore"
+STRATEGY_REASON=""
+if [ -f "$JSONL_FILE" ]; then
+  STRATEGY_JSON=$(compute_strategy "$JSONL_FILE")
+  STRATEGY_MODE=$(echo "$STRATEGY_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('mode','explore'))" 2>/dev/null || echo "explore")
+  STRATEGY_REASON=$(echo "$STRATEGY_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('reason',''))" 2>/dev/null || echo "")
+fi
+
 # Block the stop and feed the prompt back to Claude
-SYSTEM_MSG="Loop continuation ${NEW_COUNT}/${STATE_MAX_ITERATIONS}"
+SYSTEM_MSG="Loop continuation ${NEW_COUNT}/${STATE_MAX_ITERATIONS} | Strategy: ${STRATEGY_MODE}"
+if [ -n "$STRATEGY_REASON" ]; then
+  SYSTEM_MSG="${SYSTEM_MSG} (${STRATEGY_REASON})"
+fi
 
 # Use python3 to properly JSON-encode the output (handles quotes, newlines, etc.)
 python3 -c "

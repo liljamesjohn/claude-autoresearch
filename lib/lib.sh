@@ -100,6 +100,89 @@ print(f'{total:.4f}')
 " "$transcript" 2>/dev/null || echo "0.0000"
 }
 
+# --- Adaptive Search Strategy ---
+
+# Compute the current search strategy from experiment history.
+# Returns a JSON string: {"mode":"explore","reason":"..."}
+# Args: $1 = path to autoresearch.jsonl
+compute_strategy() {
+  local jsonl_file="$1"
+  python3 -c "
+import json, sys
+
+results = []
+best_metric = None
+best_direction = 'lower'
+
+for line in open(sys.argv[1]):
+    line = line.strip()
+    if not line: continue
+    try:
+        d = json.loads(line)
+    except: continue
+    if d.get('type') == 'config':
+        best_direction = d.get('bestDirection', 'lower')
+        continue
+    results.append(d)
+
+if len(results) < 5:
+    print(json.dumps({'mode': 'explore', 'reason': 'fewer than 5 experiments, still exploring'}))
+    sys.exit(0)
+
+# Find best metric
+for r in results:
+    m = r.get('metric', 0)
+    if r.get('status') != 'keep': continue
+    if best_metric is None:
+        best_metric = m
+    elif best_direction == 'lower' and m < best_metric:
+        best_metric = m
+    elif best_direction == 'higher' and m > best_metric:
+        best_metric = m
+
+if best_metric is None:
+    best_metric = results[0].get('metric', 0)
+
+# Compute stats over last 10
+recent = results[-10:]
+keeps = sum(1 for r in recent if r.get('status') == 'keep')
+crashes = sum(1 for r in recent if r.get('status') == 'crash')
+total = len(recent)
+keep_rate = keeps / total if total else 0
+crash_rate = crashes / total if total else 0
+
+# Count consecutive discards from tail
+consec = 0
+for r in reversed(results):
+    if r.get('status') == 'keep': break
+    consec += 1
+
+# Count near-misses (discards within 5% of best)
+near_misses = 0
+for r in results:
+    if r.get('status') == 'keep': continue
+    m = r.get('metric', 0)
+    if best_metric and best_metric != 0:
+        pct = abs(m - best_metric) / abs(best_metric) * 100
+        if pct <= 5:
+            near_misses += 1
+
+# Transition rules
+if crash_rate > 0.5:
+    mode, reason = 'exploit', f'high crash rate ({crash_rate:.0%}), switching to conservative tweaks'
+elif consec >= 5 and near_misses >= 2:
+    mode, reason = 'combine', f'{consec} consecutive discards, {near_misses} near-misses — try combining best ideas'
+elif consec >= 5 and near_misses < 2:
+    mode, reason = 'ablation', f'{consec} consecutive discards, no near-misses — try removing components'
+elif keep_rate > 0.3:
+    mode, reason = 'exploit', f'high keep rate ({keep_rate:.0%}), refining current approach'
+else:
+    mode, reason = 'explore', f'default exploration (keep rate {keep_rate:.0%})'
+
+print(json.dumps({'mode': mode, 'reason': reason, 'keep_rate': round(keep_rate, 2), 'crash_rate': round(crash_rate, 2), 'near_misses': near_misses}))
+" "$jsonl_file" 2>/dev/null || echo '{"mode":"explore","reason":"fallback"}'
+}
+
 # --- Worktree Detection ---
 
 # Check if a directory is a git worktree (not the main checkout).
