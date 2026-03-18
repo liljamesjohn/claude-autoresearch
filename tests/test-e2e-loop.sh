@@ -9,7 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="${SCRIPT_DIR}/.."
 STOP_HOOK="${PLUGIN_ROOT}/hooks/scripts/stop-hook.sh"
 REVERT_SCRIPT="${PLUGIN_ROOT}/hooks/scripts/revert-experiment.sh"
+LOG_SCRIPT="${PLUGIN_ROOT}/hooks/scripts/log-experiment.sh"
 SESSION_HOOK="${PLUGIN_ROOT}/hooks/scripts/session-start-compact.sh"
+RESUME_HOOK="${PLUGIN_ROOT}/hooks/scripts/session-start-resume.sh"
 FIXTURE="${SCRIPT_DIR}/fixtures/toy-project"
 
 PASS=0
@@ -153,8 +155,8 @@ STATE
 
 assert_file_exists ".claude/autoresearch-loop.local.md" "state file created"
 
-# Initialize JSONL with config header
-echo '{"type":"config","name":"sort-speed","metricName":"sort_us","metricUnit":"us","bestDirection":"lower"}' > autoresearch.jsonl
+# Initialize JSONL with config header using helper
+bash "$LOG_SCRIPT" "$TEST_DIR" init "sort-speed" "sort_us" "us" "lower" > /dev/null 2>&1
 
 echo ""
 
@@ -165,9 +167,8 @@ BENCH_OUTPUT=$(bash autoresearch.sh 2>&1)
 BASELINE_METRIC=$(echo "$BENCH_OUTPUT" | sed -n 's/METRIC sort_us=\([0-9.]*\)/\1/p')
 assert_contains "METRIC sort_us=" "$BENCH_OUTPUT" "benchmark outputs metric"
 
-# Log baseline
-TIMESTAMP=$(date +%s)000
-echo "{\"run\":1,\"commit\":\"$(git rev-parse --short HEAD)\",\"metric\":${BASELINE_METRIC},\"status\":\"keep\",\"description\":\"baseline (bubble sort)\",\"timestamp\":${TIMESTAMP}}" >> autoresearch.jsonl
+# Log baseline using helper
+bash "$LOG_SCRIPT" "$TEST_DIR" result 1 "$BASELINE_METRIC" "keep" "baseline (bubble sort)" > /dev/null 2>&1
 
 JSONL_LINES=$(wc -l < autoresearch.jsonl | tr -d ' ')
 assert_equals "2" "$JSONL_LINES" "JSONL has config + baseline"
@@ -228,8 +229,7 @@ git commit -q -m "Use Python built-in sorted() instead of bubble sort
 Autoresearch: {\"status\":\"keep\",\"metric\":${NEW_METRIC},\"delta\":\"-99%\"}"
 KEEP_COMMIT=$(git rev-parse --short HEAD)
 
-TIMESTAMP=$(date +%s)000
-echo "{\"run\":2,\"commit\":\"${KEEP_COMMIT}\",\"metric\":${NEW_METRIC},\"status\":\"keep\",\"description\":\"Replace bubble sort with built-in sorted()\",\"timestamp\":${TIMESTAMP}}" >> autoresearch.jsonl
+bash "$LOG_SCRIPT" "$TEST_DIR" result 2 "$NEW_METRIC" "keep" "Replace bubble sort with built-in sorted()" "$KEEP_COMMIT" > /dev/null 2>&1
 
 JSONL_LINES=$(wc -l < autoresearch.jsonl | tr -d ' ')
 assert_equals "3" "$JSONL_LINES" "JSONL has 3 lines after keep"
@@ -281,10 +281,8 @@ CHECKS_EXIT=$?
 # But we're running it with || true, so we check the content
 assert_contains "failed" "$CHECKS_OUTPUT" "checks detect broken code"
 
-# Simulate DISCARD: revert
-TIMESTAMP=$(date +%s)000
-echo "{\"run\":3,\"commit\":\"$(git rev-parse --short HEAD)\",\"metric\":0,\"status\":\"checks_failed\",\"description\":\"Return reversed list (broken)\",\"timestamp\":${TIMESTAMP}}" >> autoresearch.jsonl
-
+# Simulate DISCARD: log then revert
+bash "$LOG_SCRIPT" "$TEST_DIR" result 3 "0" "checks_failed" "Return reversed list (broken)" > /dev/null 2>&1
 bash "$REVERT_SCRIPT" "$TEST_DIR" > /dev/null 2>&1
 
 # Verify code was reverted to the good version

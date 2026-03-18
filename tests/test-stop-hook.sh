@@ -206,6 +206,35 @@ assert_exit 0 $EXIT_CODE "exits 0"
 assert_output_contains "Continue the autoresearch experiment loop" "$OUTPUT" "uses default prompt"
 teardown
 
+# --- Test 9: JSON escaping — prompt with quotes and newlines ---
+echo "Test 9: JSON escaping with special characters"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+iteration: 0
+max_iterations: 50
+active: true
+---
+Continue the loop. Try "sorted()" or use a backslash \ path.
+Also check the "What's Been Tried" section.
+EOF
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","stop_hook_active":false,"last_assistant_message":"Done."}' | bash "$HOOK" 2>/dev/null)
+EXIT_CODE=$?
+assert_exit 0 $EXIT_CODE "exits 0"
+# Validate the output is valid JSON
+TESTS=$((TESTS + 1))
+if echo "$OUTPUT" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+  PASS=$((PASS + 1))
+  echo "  PASS: output is valid JSON despite quotes and backslashes"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: output is not valid JSON"
+  echo "  Output was: $OUTPUT"
+fi
+# Verify the prompt content survived encoding
+assert_output_contains "sorted()" "$OUTPUT" "prompt with quotes preserved"
+teardown
+
 # --- Summary ---
 echo ""
 echo "=============================="

@@ -19,6 +19,24 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start-compact.sh"
           }
         ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start-resume.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start-resume.sh"
+          }
+        ]
       }
     ],
     "PreCompact": [

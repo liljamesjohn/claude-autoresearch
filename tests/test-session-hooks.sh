@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SESSION_HOOK="${SCRIPT_DIR}/../hooks/scripts/session-start-compact.sh"
+RESUME_HOOK="${SCRIPT_DIR}/../hooks/scripts/session-start-resume.sh"
 PRECOMPACT_HOOK="${SCRIPT_DIR}/../hooks/scripts/pre-compact.sh"
 PASS=0
 FAIL=0
@@ -146,6 +147,63 @@ EXIT_CODE=$?
 assert_exit 0 $EXIT_CODE "exits 0"
 assert_output_contains "IMPORTANT" "$OUTPUT" "contains IMPORTANT marker"
 assert_output_contains "optimization goal" "$OUTPUT" "mentions optimization goal"
+teardown
+
+# ============================================
+# SESSION START RESUME HOOK
+# ============================================
+echo ""
+echo "=== Session Start Resume Hook ==="
+
+# --- Test 6: No state file → no output ---
+echo "Test 6: No active session"
+setup
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","hook_event_name":"SessionStart","source":"startup"}' | bash "$RESUME_HOOK" 2>/dev/null)
+EXIT_CODE=$?
+assert_exit 0 $EXIT_CODE "exits 0"
+assert_output_empty "$OUTPUT" "no output"
+teardown
+
+# --- Test 7: Active session → outputs resume prompt ---
+echo "Test 7: Active session detected on startup"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+iteration: 5
+max_iterations: 30
+active: true
+---
+Continue.
+EOF
+cat > "${TEST_DIR}/autoresearch.md" << 'EOF'
+# Autoresearch: Speed test
+EOF
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","hook_event_name":"SessionStart","source":"startup"}' | bash "$RESUME_HOOK" 2>/dev/null)
+EXIT_CODE=$?
+assert_exit 0 $EXIT_CODE "exits 0"
+assert_output_contains "AUTORESEARCH_SESSION_DETECTED" "$OUTPUT" "contains session tag"
+assert_output_contains "5/30" "$OUTPUT" "contains iteration count"
+assert_output_contains "resume the experiment loop" "$OUTPUT" "contains resume instruction"
+teardown
+
+# --- Test 8: Inactive session → no output ---
+echo "Test 8: Inactive session ignored"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+iteration: 10
+max_iterations: 10
+active: false
+---
+Continue.
+EOF
+cat > "${TEST_DIR}/autoresearch.md" << 'EOF'
+# Autoresearch: Done
+EOF
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","hook_event_name":"SessionStart","source":"resume"}' | bash "$RESUME_HOOK" 2>/dev/null)
+EXIT_CODE=$?
+assert_exit 0 $EXIT_CODE "exits 0"
+assert_output_empty "$OUTPUT" "no output for inactive session"
 teardown
 
 # --- Summary ---

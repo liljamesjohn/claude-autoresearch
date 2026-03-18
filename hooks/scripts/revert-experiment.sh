@@ -3,6 +3,9 @@
 # Reverts code changes from a failed/discarded experiment while preserving
 # autoresearch session files (JSONL log, session doc, scripts, ideas).
 #
+# Worktree-safe: uses a temp directory instead of git stash (stash is shared
+# across worktrees and would cause conflicts).
+#
 # Usage: revert-experiment.sh [working_dir]
 
 set -euo pipefail
@@ -19,24 +22,28 @@ PROTECTED_FILES=(
   "autoresearch.checks.sh"
 )
 
-# Stage protected files so they survive the revert
+# Save protected files to a temp directory
+BACKUP_DIR=$(mktemp -d)
+SAVED=0
 for f in "${PROTECTED_FILES[@]}"; do
   if [ -f "$f" ]; then
-    git add "$f" 2>/dev/null || true
+    cp "$f" "${BACKUP_DIR}/$f"
+    SAVED=$((SAVED + 1))
   fi
 done
 
-# Stash the staged protected files
-if git diff --cached --quiet 2>/dev/null; then
-  # Nothing staged — just revert directly
-  git checkout -- . 2>/dev/null || true
-  git clean -fd 2>/dev/null || true
-else
-  # Stash protected files, revert everything, restore protected files
-  git stash push --staged -m "autoresearch-protected" 2>/dev/null || true
-  git checkout -- . 2>/dev/null || true
-  git clean -fd 2>/dev/null || true
-  git stash pop 2>/dev/null || true
-fi
+# Revert all changes
+git checkout -- . 2>/dev/null || true
+git clean -fd 2>/dev/null || true
 
-echo "Reverted to last good commit. Autoresearch files preserved."
+# Restore protected files from backup
+for f in "${PROTECTED_FILES[@]}"; do
+  if [ -f "${BACKUP_DIR}/$f" ]; then
+    cp "${BACKUP_DIR}/$f" "$f"
+  fi
+done
+
+# Clean up
+rm -rf "$BACKUP_DIR"
+
+echo "Reverted to last good commit. ${SAVED} autoresearch files preserved."

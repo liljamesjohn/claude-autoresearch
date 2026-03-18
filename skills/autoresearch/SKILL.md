@@ -126,9 +126,17 @@ Read autoresearch.md for full context. Continue the experiment loop.
 EOF
 ```
 
-7. **Run baseline**: execute `./autoresearch.sh`, parse the metric, log the first result
+7. **Initialize JSONL** using the log helper:
+```bash
+${CLAUDE_PLUGIN_ROOT}/hooks/scripts/log-experiment.sh . init "<goal>" "<metric_name>" "<metric_unit>" "<lower|higher>"
+```
 
-8. **Start looping immediately**
+8. **Run baseline**: execute `./autoresearch.sh`, parse the metric, log the baseline:
+```bash
+${CLAUDE_PLUGIN_ROOT}/hooks/scripts/log-experiment.sh . result 1 <baseline_metric> keep "baseline"
+```
+
+9. **Start looping immediately**
 
 ## The Experiment Loop
 
@@ -149,31 +157,19 @@ git commit -m "<description>
 
 Autoresearch: {\"status\":\"keep\",\"metric\":<value>,\"delta\":\"<delta%>\"}"
 ```
-Log to `autoresearch.jsonl`:
-```json
-{"run":N,"commit":"<hash>","metric":<value>,"status":"keep","description":"<what was tried>","timestamp":<epoch_ms>}
+Log the result using the helper (ensures consistent JSONL format):
+```bash
+${CLAUDE_PLUGIN_ROOT}/hooks/scripts/log-experiment.sh . result <run_number> <metric_value> keep "<description>"
 ```
 
 ### If worse/equal OR checks fail:
+Revert code changes (autoresearch files are automatically preserved):
 ```bash
-# Stage protected files first so they survive the revert
-git add autoresearch.jsonl autoresearch.md autoresearch.ideas.md autoresearch.sh autoresearch.checks.sh 2>/dev/null
-git stash push --staged -m "autoresearch-protected"
-# Revert everything else
-git checkout -- .
-git clean -fd
-# Restore protected files
-git stash pop
+${CLAUDE_PLUGIN_ROOT}/hooks/scripts/revert-experiment.sh .
 ```
-
-Or use the helper script:
+Log the result:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/hooks/scripts/revert-experiment.sh
-```
-
-Log to `autoresearch.jsonl`:
-```json
-{"run":N,"commit":"<hash>","metric":<value>,"status":"discard|crash|checks_failed","description":"<what was tried>","timestamp":<epoch_ms>}
+${CLAUDE_PLUGIN_ROOT}/hooks/scripts/log-experiment.sh . result <run_number> <metric_value> discard|crash|checks_failed "<description>"
 ```
 
 8. **Update `autoresearch.md`**: append to "What's Been Tried"
@@ -191,6 +187,12 @@ Log to `autoresearch.jsonl`:
 - **If out of ideas, think harder.** Read academic papers in your training data. Try counterintuitive approaches. Combine two previous ideas.
 
 **NEVER STOP.** The user may be away for hours.
+
+## Guardrails
+
+- **Do not overfit to the benchmark.** The optimization must improve real-world performance, not just game the measurement script.
+- **Do not cheat on the benchmark.** Never modify `autoresearch.sh`, `autoresearch.checks.sh`, or the test suite to make metrics look better.
+- **Do not add benchmark-specific code paths.** No `if running_benchmark: ...` shortcuts. The optimized code must be production-quality.
 
 ## Ideas Backlog
 

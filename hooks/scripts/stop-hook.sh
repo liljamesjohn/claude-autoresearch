@@ -66,8 +66,14 @@ fi
 # Block the stop and feed the prompt back to Claude
 SYSTEM_MSG="Autoresearch loop iteration ${NEW_ITERATION}/${MAX_ITERATIONS}"
 
-cat << HOOKEOF
-{"decision": "block", "reason": "${PROMPT}", "systemMessage": "${SYSTEM_MSG}"}
-HOOKEOF
+# Use python3 to properly JSON-encode the output (handles quotes, newlines, etc.)
+python3 -c "
+import json, sys
+print(json.dumps({
+    'decision': 'block',
+    'reason': sys.argv[1],
+    'systemMessage': sys.argv[2]
+}))
+" "$PROMPT" "$SYSTEM_MSG"
 
 exit 0
