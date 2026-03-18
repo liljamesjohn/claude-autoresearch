@@ -1,0 +1,22 @@
+{
+  "name": "claude-autoresearch",
+  "owner": {
+    "name": "James",
+    "url": "https://github.com/liljamesjohn"
+  },
+  "metadata": {
+    "description": "Autonomous experiment loop plugin for Claude Code",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "autoresearch",
+      "source": ".",
+      "description": "Autonomous experiment loop — try ideas, measure results, keep what works, discard what doesn't, repeat forever.",
+      "version": "0.1.0",
+      "author": { "name": "James" },
+      "category": "development",
+      "keywords": ["autoresearch", "optimization", "benchmark", "autonomous"]
+    }
+  ]
+}
