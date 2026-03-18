@@ -116,8 +116,13 @@ lines.append(f'```')
 with open(report_path, 'w') as f:
     f.write('\n'.join(lines) + '\n')
 
-# Print summary to terminal
-print(f'Autoresearch report: {total} experiments, {kept} kept, best {metric_name}={best} ({improvement_str})', file=sys.stderr)
-" "$JSONL_FILE" "$REPORT_FILE" "$HOOK_CWD" 2>/dev/tty || true
+# Print summary to terminal (best-effort — /dev/tty may not exist in headless mode)
+summary = f'Autoresearch report written: {total} experiments, {kept} kept, best {metric_name}={best} ({improvement_str})'
+try:
+    with open('/dev/tty', 'w') as tty:
+        tty.write(summary + '\\n')
+except:
+    print(summary, file=sys.stderr)
+" "$JSONL_FILE" "$REPORT_FILE" "$HOOK_CWD" 2>/dev/null || true
 
 exit 0

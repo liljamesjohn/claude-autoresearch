@@ -70,11 +70,17 @@ print(json.dumps({
     esac
 
     # Collect secondary metrics from trailing key=value args (args 8+)
-    SECONDARY_ARGS=""
-    shift 7 2>/dev/null || true
-    for arg in "$@"; do
-      SECONDARY_ARGS="${SECONDARY_ARGS}${SECONDARY_ARGS:+ }${arg}"
-    done
+    # Each arg is passed individually to Python to avoid shell word-splitting issues
+    SECONDARY_ARGS=()
+    if [ $# -ge 8 ]; then
+      shift 7
+      for arg in "$@"; do
+        # Only accept strict key=number format (no spaces, no special chars)
+        if echo "$arg" | grep -qE '^[a-zA-Z_][a-zA-Z0-9_]*=[0-9.]+$'; then
+          SECONDARY_ARGS+=("$arg")
+        fi
+      done
+    fi
 
     python3 -c "
 import json, sys, time
@@ -91,17 +97,16 @@ status = sys.argv[3]
 commit = sys.argv[4]
 description = sys.argv[5]
 jsonl_path = sys.argv[6]
-secondary_str = sys.argv[7] if len(sys.argv) > 7 else ''
 
-# Parse secondary metrics from space-separated key=value pairs
+# Parse secondary metrics — each arg after position 6 is a key=value pair
 secondary = {}
-for pair in secondary_str.split():
-    if '=' in pair:
-        k, v = pair.split('=', 1)
+for arg in sys.argv[7:]:
+    if '=' in arg:
+        k, v = arg.split('=', 1)
         try:
             secondary[k] = float(v)
         except ValueError:
-            secondary[k] = v
+            pass  # Skip non-numeric values silently
 
 # Auto-compute delta from baseline (first result in JSONL)
 delta_pct = None
@@ -128,7 +133,7 @@ if secondary:
     record['secondary_metrics'] = secondary
 
 print(json.dumps(record, separators=(',', ':')))
-" "$RUN" "$METRIC" "$STATUS" "$COMMIT" "$DESCRIPTION" "$JSONL_FILE" "$SECONDARY_ARGS" >> "$JSONL_FILE"
+" "$RUN" "$METRIC" "$STATUS" "$COMMIT" "$DESCRIPTION" "$JSONL_FILE" ${SECONDARY_ARGS[@]+"${SECONDARY_ARGS[@]}"} >> "$JSONL_FILE"
 
     echo "Logged run #${RUN}: ${STATUS} (${METRIC})"
     ;;
