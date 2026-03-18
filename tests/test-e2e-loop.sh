@@ -166,6 +166,8 @@ cat > .claude/autoresearch-loop.local.md << 'STATE'
 ---
 stop_count: 0
 max_iterations: 50
+max_consecutive_discards: 8
+max_cost_usd: 0
 active: true
 ---
 Read autoresearch.md for full context. Continue the experiment loop.
@@ -356,6 +358,8 @@ cat > .claude/autoresearch-loop.local.md << 'STATE'
 ---
 stop_count: 1
 max_iterations: 50
+max_consecutive_discards: 8
+max_cost_usd: 0
 active: true
 ---
 Read autoresearch.md for full context. Continue the experiment loop.

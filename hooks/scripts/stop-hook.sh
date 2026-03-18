@@ -39,6 +39,26 @@ if [ "$STATE_STOP_COUNT" -ge "$STATE_MAX_ITERATIONS" ]; then
   exit 0
 fi
 
+# Guard 5: Convergence detection — too many consecutive non-keep results
+JSONL_FILE="${HOOK_CWD}/autoresearch.jsonl"
+if [ -f "$JSONL_FILE" ]; then
+  CONSEC=$(consecutive_discards "$JSONL_FILE")
+  if [ "$CONSEC" -ge "$STATE_MAX_CONSECUTIVE_DISCARDS" ]; then
+    rm -f "$STATE_FILE"
+    exit 0
+  fi
+fi
+
+# Guard 6: Cost budget ceiling
+TRANSCRIPT=$(hook_field "transcript_path")
+if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ] && [ "$STATE_MAX_COST" != "0" ]; then
+  COST=$(estimate_session_cost "$TRANSCRIPT")
+  if python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$COST" "$STATE_MAX_COST" 2>/dev/null; then
+    rm -f "$STATE_FILE"
+    exit 0
+  fi
+fi
+
 # Check for completion promise in last assistant message
 LAST_MSG=$(hook_field "last_assistant_message")
 if echo "$LAST_MSG" | grep -q '<promise>AUTORESEARCH_COMPLETE</promise>' 2>/dev/null; then

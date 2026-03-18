@@ -45,6 +45,8 @@ When starting a new session:
    - **Metric**: name, unit, and direction (e.g., `recalc_us`, microseconds, lower is better)
    - **Files in scope**: which files may be modified
    - **Quality gate** (optional): correctness checks command (e.g., `bun run test`)
+   - **Guards** (optional): metrics that must not regress (e.g., `memory_mb < 512`)
+   - **Cost ceiling** (optional): max USD to spend before auto-stopping (e.g., `5.00`)
    - **Constraints**: hard rules (no new deps, specific files off-limits, etc.)
 
 3. **Read source files deeply** before writing anything. Understand the workload.
@@ -76,6 +78,12 @@ What must NOT be touched and why.
 
 ## Constraints
 Hard rules: tests must pass, no new dependencies, etc.
+
+## Guards (must not regress)
+Metrics that must stay within bounds regardless of the primary optimization.
+Format: `metric_name operator threshold` (e.g., `memory_mb < 512`, `test_count >= 47`)
+The benchmark script outputs these as additional METRIC lines.
+If any guard is violated, treat the experiment as checks_failed.
 
 ## Baseline
 - Primary metric: <value>
@@ -136,11 +144,16 @@ cat > .claude/autoresearch-loop.local.md << 'EOF'
 ---
 stop_count: 0
 max_iterations: 50
+max_consecutive_discards: 8
+max_cost_usd: 0
 active: true
 ---
 Read autoresearch.md for full context. Continue the experiment loop.
 EOF
 ```
+
+Set `max_cost_usd` to the user's cost ceiling if they specified one (0 = unlimited).
+Set `max_consecutive_discards` to 8 by default (loop stops after 8 consecutive non-keep results).
 
 7. **Initialize JSONL** using the log helper:
 ```bash
@@ -201,6 +214,8 @@ ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/log-experiment.sh . result <run_number> <met
 - **Crashes**: fix if trivial (typo, missing import), otherwise log as `crash` and move on.
 - **Think longer when stuck.** Re-read source files. Study profiling data. Try a completely different approach.
 - **If out of ideas, think harder.** Read academic papers in your training data. Try counterintuitive approaches. Combine two previous ideas.
+- **Check guards after every experiment.** If `autoresearch.md` has a `## Guards` section, parse all guard metrics from the benchmark output and verify each one. If any guard is violated, treat the experiment as `checks_failed` regardless of primary metric improvement.
+- **Signal completion** when you've genuinely exhausted all ideas and further experiments would be unproductive. Emit `<promise>AUTORESEARCH_COMPLETE</promise>` in your message. The stop hook will detect this and cleanly terminate the loop.
 
 **NEVER STOP.** The user may be away for hours.
 
@@ -231,6 +246,14 @@ If the user sends a message while you're mid-experiment, finish the current run 
 ## Status Display
 
 When `/autoresearch status` is called, use the `/autoresearch-status` command to display results.
+
+## Automatic Termination
+
+The loop stops automatically when any of these occur:
+- **Max iterations reached** — stop hook deletes the state file
+- **Convergence detected** — too many consecutive discards (default 8)
+- **Cost budget exceeded** — estimated session cost exceeds `max_cost_usd`
+- **Completion signal** — you emit `<promise>AUTORESEARCH_COMPLETE</promise>` when all ideas are exhausted
 
 ## Deactivating
 

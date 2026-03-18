@@ -235,6 +235,126 @@ fi
 assert_output_contains "sorted()" "$OUTPUT" "prompt with quotes preserved"
 teardown
 
+# --- Test 10: Convergence detection — 8 consecutive discards → allows stop ---
+echo "Test 10: Convergence detection (8 consecutive discards)"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+stop_count: 5
+max_iterations: 50
+max_consecutive_discards: 8
+active: true
+---
+Continue.
+EOF
+# Create JSONL with 1 keep then 8 discards
+cat > "${TEST_DIR}/autoresearch.jsonl" << 'JSONL'
+{"type":"config","name":"test","metricName":"ms","metricUnit":"ms","bestDirection":"lower"}
+{"run":1,"metric":100,"status":"keep","description":"baseline"}
+{"run":2,"metric":110,"status":"discard","description":"try 1"}
+{"run":3,"metric":120,"status":"discard","description":"try 2"}
+{"run":4,"metric":105,"status":"discard","description":"try 3"}
+{"run":5,"metric":130,"status":"crash","description":"try 4"}
+{"run":6,"metric":115,"status":"discard","description":"try 5"}
+{"run":7,"metric":140,"status":"discard","description":"try 6"}
+{"run":8,"metric":108,"status":"discard","description":"try 7"}
+{"run":9,"metric":125,"status":"discard","description":"try 8"}
+JSONL
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","stop_hook_active":false,"last_assistant_message":"Done."}' | bash "$HOOK" 2>/dev/null)
+EXIT_CODE=$?
+assert_exit 0 $EXIT_CODE "exits 0"
+assert_output_empty "$OUTPUT" "no output (allows stop)"
+assert_file_not_exists "${TEST_DIR}/.claude/autoresearch-loop.local.md" "state file deleted"
+teardown
+
+# --- Test 11: Below convergence threshold → blocks stop ---
+echo "Test 11: Below convergence threshold (5 discards < 8)"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+stop_count: 3
+max_iterations: 50
+max_consecutive_discards: 8
+active: true
+---
+Continue.
+EOF
+cat > "${TEST_DIR}/autoresearch.jsonl" << 'JSONL'
+{"type":"config","name":"test","metricName":"ms","metricUnit":"ms","bestDirection":"lower"}
+{"run":1,"metric":100,"status":"keep","description":"baseline"}
+{"run":2,"metric":110,"status":"discard","description":"try 1"}
+{"run":3,"metric":120,"status":"discard","description":"try 2"}
+{"run":4,"metric":105,"status":"discard","description":"try 3"}
+{"run":5,"metric":130,"status":"discard","description":"try 4"}
+{"run":6,"metric":115,"status":"discard","description":"try 5"}
+JSONL
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","stop_hook_active":false,"last_assistant_message":"Done."}' | bash "$HOOK" 2>/dev/null)
+assert_output_contains '"decision": "block"' "$OUTPUT" "blocks stop (below threshold)"
+teardown
+
+# --- Test 12: Cost budget exceeded → allows stop ---
+echo "Test 12: Cost budget exceeded"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+stop_count: 2
+max_iterations: 50
+max_cost_usd: 0.01
+active: true
+---
+Continue.
+EOF
+# Create a fake transcript with enough tokens to exceed $0.01
+# 10000 input tokens at $3/1M = $0.03
+cat > "${TEST_DIR}/transcript.jsonl" << 'JSONL'
+{"type":"assistant","message":{"usage":{"input_tokens":5000,"output_tokens":500,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+{"type":"assistant","message":{"usage":{"input_tokens":5000,"output_tokens":500,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+JSONL
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","stop_hook_active":false,"last_assistant_message":"Done.","transcript_path":"'"${TEST_DIR}/transcript.jsonl"'"}' | bash "$HOOK" 2>/dev/null)
+EXIT_CODE=$?
+assert_exit 0 $EXIT_CODE "exits 0"
+assert_output_empty "$OUTPUT" "no output (allows stop)"
+assert_file_not_exists "${TEST_DIR}/.claude/autoresearch-loop.local.md" "state file deleted"
+teardown
+
+# --- Test 13: Cost below budget → blocks stop ---
+echo "Test 13: Cost below budget"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+stop_count: 1
+max_iterations: 50
+max_cost_usd: 10.00
+active: true
+---
+Continue.
+EOF
+cat > "${TEST_DIR}/transcript.jsonl" << 'JSONL'
+{"type":"assistant","message":{"usage":{"input_tokens":1000,"output_tokens":100,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+JSONL
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","stop_hook_active":false,"last_assistant_message":"Done.","transcript_path":"'"${TEST_DIR}/transcript.jsonl"'"}' | bash "$HOOK" 2>/dev/null)
+assert_output_contains '"decision": "block"' "$OUTPUT" "blocks stop (below budget)"
+teardown
+
+# --- Test 14: No cost limit (max_cost_usd=0) → blocks stop ---
+echo "Test 14: No cost limit (unlimited)"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+stop_count: 1
+max_iterations: 50
+max_cost_usd: 0
+active: true
+---
+Continue.
+EOF
+cat > "${TEST_DIR}/transcript.jsonl" << 'JSONL'
+{"type":"assistant","message":{"usage":{"input_tokens":999999,"output_tokens":999999}}}
+JSONL
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","stop_hook_active":false,"last_assistant_message":"Done.","transcript_path":"'"${TEST_DIR}/transcript.jsonl"'"}' | bash "$HOOK" 2>/dev/null)
+assert_output_contains '"decision": "block"' "$OUTPUT" "blocks stop (no limit set)"
+teardown
+
 # --- Summary ---
 echo ""
 echo "=============================="
