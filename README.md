@@ -113,19 +113,25 @@ Two completely independent working directories, same repo. You can develop on ma
 ```
 claude-autoresearch/
 ├── .claude-plugin/
-│   └── plugin.json              # Plugin manifest
+│   ├── plugin.json              # Plugin manifest
+│   └── marketplace.json         # Marketplace catalog
 ├── skills/
 │   └── autoresearch/
 │       └── SKILL.md             # /autoresearch skill — setup + loop prompt
 ├── commands/
 │   └── autoresearch-status.md   # /autoresearch-status — results summary
+├── lib/
+│   └── lib.sh                   # Shared utilities (frontmatter parsing, hook input)
 ├── hooks/
 │   ├── hooks.json               # Hook registrations (Stop, SessionStart, PreCompact)
 │   └── scripts/
 │       ├── stop-hook.sh         # Keeps the loop running (Ralph Wiggum pattern)
-│       ├── session-start-compact.sh  # Re-injects context after compaction
+│       ├── session-start-compact.sh   # Re-injects context after compaction
+│       ├── session-start-resume.sh    # Auto-resume on session start
 │       ├── pre-compact.sh       # Preserves state before compaction
-│       └── revert-experiment.sh # Git revert with protected files
+│       ├── revert-experiment.sh # Git revert with protected files
+│       └── log-experiment.sh    # Structured JSONL experiment logger
+├── tests/                       # Unit + E2E test suites
 ├── LICENSE
 └── README.md
 ```

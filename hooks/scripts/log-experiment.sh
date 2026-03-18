@@ -28,6 +28,11 @@ case "$ACTION" in
       exit 1
     fi
 
+    if [ "$DIRECTION" != "lower" ] && [ "$DIRECTION" != "higher" ]; then
+      echo "Error: direction must be 'lower' or 'higher', got '$DIRECTION'" >&2
+      exit 1
+    fi
+
     python3 -c "
 import json, sys
 print(json.dumps({
@@ -54,13 +59,24 @@ print(json.dumps({
       exit 1
     fi
 
+    # Validate status
+    case "$STATUS" in
+      keep|discard|crash|checks_failed) ;;
+      *)
+        echo "Error: status must be keep, discard, crash, or checks_failed — got '$STATUS'" >&2
+        exit 1
+        ;;
+    esac
+
     python3 -c "
 import json, sys, time
 run = int(sys.argv[1])
+metric_str = sys.argv[2]
 try:
-    metric = float(sys.argv[2])
-except (ValueError, IndexError):
-    metric = 0.0
+    metric = float(metric_str)
+except ValueError:
+    print(f'Error: metric must be a number, got \"{metric_str}\"', file=sys.stderr)
+    sys.exit(1)
 print(json.dumps({
     'run': run,
     'commit': sys.argv[4],

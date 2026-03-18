@@ -118,7 +118,7 @@ bun run test --run 2>&1 | tail -20
 ```bash
 cat > .claude/autoresearch-loop.local.md << 'EOF'
 ---
-iteration: 0
+stop_count: 0
 max_iterations: 50
 active: true
 ---
@@ -214,20 +214,7 @@ If the user sends a message while you're mid-experiment, finish the current run 
 
 ## Status Display
 
-When `/autoresearch status` is called, parse `autoresearch.jsonl` and display:
-
-```
-Autoresearch: <name>
-Metric: <metric_name> (<unit>, <direction> is better)
-Runs: <total> | Kept: <kept> | Discarded: <discarded> | Crashed: <crashed>
-Baseline: <baseline_value> (run #1)
-Best: <best_value> (run #N, <delta%> improvement)
-
-Recent experiments:
-  #N: <description> → <status> (<value>, <delta%>)
-  #N-1: ...
-  ...
-```
+When `/autoresearch status` is called, use the `/autoresearch-status` command to display results.
 
 ## Deactivating
 

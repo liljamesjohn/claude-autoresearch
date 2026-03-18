@@ -83,7 +83,7 @@ echo "Test 2: stop_hook_active=true"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 3
+stop_count: 3
 max_iterations: 50
 active: true
 ---
@@ -100,7 +100,7 @@ echo "Test 3: Active state file blocks stop"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 3
+stop_count: 3
 max_iterations: 50
 active: true
 ---
@@ -119,21 +119,21 @@ echo "Test 4: Iteration increments"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 7
+stop_count: 7
 max_iterations: 50
 active: true
 ---
 Keep going.
 EOF
 echo '{"cwd":"'"$TEST_DIR"'","stop_hook_active":false,"last_assistant_message":"Done."}' | bash "$HOOK" > /dev/null 2>&1
-UPDATED_ITER=$(sed -n 's/^iteration:[[:space:]]*\([0-9]*\)/\1/p' "${TEST_DIR}/.claude/autoresearch-loop.local.md")
+UPDATED_COUNT=$(sed -n 's/^stop_count:[[:space:]]*\([0-9]*\)/\1/p' "${TEST_DIR}/.claude/autoresearch-loop.local.md")
 TESTS=$((TESTS + 1))
-if [ "$UPDATED_ITER" = "8" ]; then
+if [ "$UPDATED_COUNT" = "8" ]; then
   PASS=$((PASS + 1))
-  echo "  PASS: iteration incremented from 7 to 8"
+  echo "  PASS: stop_count incremented from 7 to 8"
 else
   FAIL=$((FAIL + 1))
-  echo "  FAIL: expected iteration 8, got $UPDATED_ITER"
+  echo "  FAIL: expected stop_count 8, got $UPDATED_COUNT"
 fi
 teardown
 
@@ -142,7 +142,7 @@ echo "Test 5: Max iterations reached"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 50
+stop_count: 50
 max_iterations: 50
 active: true
 ---
@@ -160,7 +160,7 @@ echo "Test 6: active: false"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 3
+stop_count: 3
 max_iterations: 50
 active: false
 ---
@@ -177,7 +177,7 @@ echo "Test 7: Completion promise detected"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 10
+stop_count: 10
 max_iterations: 50
 active: true
 ---
@@ -195,7 +195,7 @@ echo "Test 8: Empty prompt uses default"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 0
+stop_count: 0
 max_iterations: 50
 active: true
 ---
@@ -211,7 +211,7 @@ echo "Test 9: JSON escaping with special characters"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 0
+stop_count: 0
 max_iterations: 50
 active: true
 ---

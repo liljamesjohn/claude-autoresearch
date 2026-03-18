@@ -75,7 +75,7 @@ echo "Test 2: State file but no autoresearch.md"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 5
+stop_count: 5
 max_iterations: 50
 active: true
 ---
@@ -92,7 +92,7 @@ echo "Test 3: Full context injection"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 12
+stop_count: 12
 max_iterations: 50
 active: true
 ---
@@ -110,10 +110,30 @@ OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","hook_event_name":"SessionStart","source":
 EXIT_CODE=$?
 assert_exit 0 $EXIT_CODE "exits 0"
 assert_output_contains "AUTORESEARCH_CONTEXT_RESTORED" "$OUTPUT" "contains context tag"
-assert_output_contains "iteration 12/50" "$OUTPUT" "contains iteration count"
+assert_output_contains "continuation 12/50" "$OUTPUT" "contains continuation count"
 assert_output_contains "Optimize FIFO" "$OUTPUT" "contains session doc content"
 assert_output_contains "pre-sort" "$OUTPUT" "contains JSONL results"
 assert_output_contains "CONTINUE THE LOOP" "$OUTPUT" "contains loop instruction"
+teardown
+
+# --- Test 3b: Inactive session → no output (Bug 2 fix) ---
+echo "Test 3b: Inactive session ignored by compact hook"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+stop_count: 5
+max_iterations: 50
+active: false
+---
+Continue.
+EOF
+cat > "${TEST_DIR}/autoresearch.md" << 'EOF'
+# Autoresearch: Done
+EOF
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","hook_event_name":"SessionStart","source":"compact"}' | bash "$SESSION_HOOK" 2>/dev/null)
+EXIT_CODE=$?
+assert_exit 0 $EXIT_CODE "exits 0"
+assert_output_empty "$OUTPUT" "no output for inactive session"
 teardown
 
 # ============================================
@@ -136,7 +156,7 @@ echo "Test 5: Active session outputs reminder"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 5
+stop_count: 5
 max_iterations: 50
 active: true
 ---
@@ -147,6 +167,23 @@ EXIT_CODE=$?
 assert_exit 0 $EXIT_CODE "exits 0"
 assert_output_contains "IMPORTANT" "$OUTPUT" "contains IMPORTANT marker"
 assert_output_contains "optimization goal" "$OUTPUT" "mentions optimization goal"
+teardown
+
+# --- Test 5b: Inactive session → no output (Bug 3 fix) ---
+echo "Test 5b: Inactive session ignored by pre-compact hook"
+setup
+cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
+---
+stop_count: 5
+max_iterations: 50
+active: false
+---
+Continue.
+EOF
+OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","hook_event_name":"PreCompact","trigger":"auto"}' | bash "$PRECOMPACT_HOOK" 2>/dev/null)
+EXIT_CODE=$?
+assert_exit 0 $EXIT_CODE "exits 0"
+assert_output_empty "$OUTPUT" "no output for inactive session"
 teardown
 
 # ============================================
@@ -169,7 +206,7 @@ echo "Test 7: Active session detected on startup"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 5
+stop_count: 5
 max_iterations: 30
 active: true
 ---
@@ -191,7 +228,7 @@ echo "Test 8: Inactive session ignored"
 setup
 cat > "${TEST_DIR}/.claude/autoresearch-loop.local.md" << 'EOF'
 ---
-iteration: 10
+stop_count: 10
 max_iterations: 10
 active: false
 ---

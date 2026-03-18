@@ -151,6 +151,24 @@ assert_file_exists "autoresearch.checks.sh" "checks script preserved"
 assert_equals "original content" "$(cat source.txt)" "source reverted"
 teardown
 
+# --- Test 6: .env files are NOT destroyed (Bug 1 fix) ---
+echo "Test 6: User .env files preserved"
+setup_repo
+
+echo "SECRET_KEY=abc123" > .env.local
+echo "DB_URL=postgres://localhost" > .env
+echo "new experiment file" > new-code.py
+echo "modified" > source.txt
+
+bash "$HOOK" "$TEST_DIR" > /dev/null 2>&1
+
+assert_file_exists ".env.local" ".env.local preserved"
+assert_file_exists ".env" ".env preserved"
+assert_equals "SECRET_KEY=abc123" "$(cat .env.local)" ".env.local content intact"
+assert_equals "original content" "$(cat source.txt)" "source reverted"
+assert_file_not_exists "new-code.py" "experiment file removed"
+teardown
+
 # --- Summary ---
 echo ""
 echo "=============================="

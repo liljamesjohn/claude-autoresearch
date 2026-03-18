@@ -8,53 +8,51 @@
 
 set -euo pipefail
 
+# Source shared utilities
+source "${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}/lib/lib.sh"
+
 # Read hook input from stdin
-HOOK_INPUT=$(cat)
+read_hook_input
 
 # Guard 1: If already in a hook-triggered continuation, allow stop
-STOP_HOOK_ACTIVE=$(echo "$HOOK_INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d.get('stop_hook_active', False)).lower())" 2>/dev/null || echo "false")
-if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
+if [ "$HOOK_STOP_ACTIVE" = "true" ]; then
   exit 0
 fi
 
 # Guard 2: State file must exist
-CWD=$(echo "$HOOK_INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cwd',''))" 2>/dev/null || echo "")
-STATE_FILE="${CWD}/.claude/autoresearch-loop.local.md"
-
+STATE_FILE=$(state_file_path "$HOOK_CWD")
 if [ ! -f "$STATE_FILE" ]; then
   exit 0
 fi
 
-# Parse state file frontmatter (macOS-compatible, no grep -P)
-ITERATION=$(sed -n 's/^iteration:[[:space:]]*\([0-9]*\)/\1/p' "$STATE_FILE" 2>/dev/null)
-ITERATION="${ITERATION:-0}"
-MAX_ITERATIONS=$(sed -n 's/^max_iterations:[[:space:]]*\([0-9]*\)/\1/p' "$STATE_FILE" 2>/dev/null)
-MAX_ITERATIONS="${MAX_ITERATIONS:-50}"
-ACTIVE=$(sed -n 's/^active:[[:space:]]*\([a-z]*\)/\1/p' "$STATE_FILE" 2>/dev/null)
-ACTIVE="${ACTIVE:-false}"
+# Parse state file frontmatter
+parse_state_file "$STATE_FILE"
 
 # Guard 3: Must be active
-if [ "$ACTIVE" != "true" ]; then
+if [ "$STATE_ACTIVE" != "true" ]; then
   exit 0
 fi
 
 # Guard 4: Check max iterations
-if [ "$ITERATION" -ge "$MAX_ITERATIONS" ]; then
+if [ "$STATE_STOP_COUNT" -ge "$STATE_MAX_ITERATIONS" ]; then
   rm -f "$STATE_FILE"
   exit 0
 fi
 
 # Check for completion promise in last assistant message
-LAST_MSG=$(echo "$HOOK_INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('last_assistant_message',''))" 2>/dev/null || echo "")
+LAST_MSG=$(hook_field "last_assistant_message")
 if echo "$LAST_MSG" | grep -q '<promise>AUTORESEARCH_COMPLETE</promise>' 2>/dev/null; then
   rm -f "$STATE_FILE"
   exit 0
 fi
 
-# Increment iteration in state file
-NEW_ITERATION=$((ITERATION + 1))
+# Increment stop count in state file
+NEW_COUNT=$((STATE_STOP_COUNT + 1))
 TEMP_FILE=$(mktemp)
-sed "s/^iteration:.*/iteration: ${NEW_ITERATION}/" "$STATE_FILE" > "$TEMP_FILE"
+# Update stop_count (or legacy iteration field)
+sed -e "s/^stop_count:.*/stop_count: ${NEW_COUNT}/" \
+    -e "s/^iteration:.*/stop_count: ${NEW_COUNT}/" \
+    "$STATE_FILE" > "$TEMP_FILE"
 mv "$TEMP_FILE" "$STATE_FILE"
 
 # Extract the prompt text (everything after the frontmatter closing ---)
@@ -64,7 +62,7 @@ if [ -z "$PROMPT" ]; then
 fi
 
 # Block the stop and feed the prompt back to Claude
-SYSTEM_MSG="Autoresearch loop iteration ${NEW_ITERATION}/${MAX_ITERATIONS}"
+SYSTEM_MSG="Loop continuation ${NEW_COUNT}/${STATE_MAX_ITERATIONS}"
 
 # Use python3 to properly JSON-encode the output (handles quotes, newlines, etc.)
 python3 -c "

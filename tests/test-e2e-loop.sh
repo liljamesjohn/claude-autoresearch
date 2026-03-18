@@ -146,7 +146,7 @@ assert_file_exists "autoresearch.checks.sh" "checks script created"
 mkdir -p .claude
 cat > .claude/autoresearch-loop.local.md << 'STATE'
 ---
-iteration: 0
+stop_count: 0
 max_iterations: 50
 active: true
 ---
@@ -304,11 +304,11 @@ echo "Phase 5: Stop hook keeps loop running"
 
 OUTPUT=$(echo '{"cwd":"'"$TEST_DIR"'","stop_hook_active":false,"last_assistant_message":"I optimized the sort."}' | bash "$STOP_HOOK" 2>/dev/null)
 assert_contains '"decision": "block"' "$OUTPUT" "stop hook blocks"
-assert_contains "1/50" "$OUTPUT" "iteration incremented to 1"
+assert_contains "1/50" "$OUTPUT" "stop count incremented to 1"
 
-# Check iteration was updated in state file
-ITER=$(sed -n 's/^iteration:[[:space:]]*\([0-9]*\)/\1/p' .claude/autoresearch-loop.local.md)
-assert_equals "1" "$ITER" "state file shows iteration 1"
+# Check stop_count was updated in state file
+COUNT=$(sed -n 's/^stop_count:[[:space:]]*\([0-9]*\)/\1/p' .claude/autoresearch-loop.local.md)
+assert_equals "1" "$COUNT" "state file shows stop_count 1"
 
 echo ""
 
@@ -336,7 +336,7 @@ echo "Phase 7: Resume"
 
 cat > .claude/autoresearch-loop.local.md << 'STATE'
 ---
-iteration: 1
+stop_count: 1
 max_iterations: 50
 active: true
 ---

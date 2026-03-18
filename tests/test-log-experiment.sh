@@ -132,6 +132,53 @@ else
 fi
 teardown
 
+# --- Test 7: Non-numeric metric is rejected ---
+echo "Test 7: Non-numeric metric rejected"
+setup
+bash "$HOOK" "$TEST_DIR" init "test" "ms" "ms" "lower" > /dev/null 2>&1
+OUTPUT=$(bash "$HOOK" "$TEST_DIR" result 1 "N/A" "keep" "bad metric" 2>&1 || true)
+TESTS=$((TESTS + 1))
+if echo "$OUTPUT" | grep -qi "error"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: non-numeric metric rejected with error"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: should reject non-numeric metric"
+fi
+# JSONL should NOT have a result line (only the config line)
+LINES=$(wc -l < "$TEST_DIR/autoresearch.jsonl" | tr -d ' ')
+assert_equals "1" "$LINES" "no result logged for bad metric"
+teardown
+
+# --- Test 8: Invalid status is rejected ---
+echo "Test 8: Invalid status rejected"
+setup
+bash "$HOOK" "$TEST_DIR" init "test" "ms" "ms" "lower" > /dev/null 2>&1
+OUTPUT=$(bash "$HOOK" "$TEST_DIR" result 1 "50" "invalid_status" "test" 2>&1 || true)
+TESTS=$((TESTS + 1))
+if echo "$OUTPUT" | grep -qi "error"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: invalid status rejected with error"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: should reject invalid status"
+fi
+teardown
+
+# --- Test 9: Invalid direction is rejected ---
+echo "Test 9: Invalid direction rejected"
+setup
+OUTPUT=$(bash "$HOOK" "$TEST_DIR" init "test" "ms" "ms" "better" 2>&1 || true)
+TESTS=$((TESTS + 1))
+if echo "$OUTPUT" | grep -qi "error"; then
+  PASS=$((PASS + 1))
+  echo "  PASS: invalid direction rejected with error"
+else
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: should reject invalid direction"
+fi
+teardown
+
 # --- Summary ---
 echo ""
 echo "=============================="

@@ -1,10 +1,11 @@
 #!/bin/bash
 # Autoresearch Revert Script
 # Reverts code changes from a failed/discarded experiment while preserving
-# autoresearch session files (JSONL log, session doc, scripts, ideas).
+# autoresearch session files and user's local config files.
 #
-# Worktree-safe: uses a temp directory instead of git stash (stash is shared
-# across worktrees and would cause conflicts).
+# Safety:
+#   - Worktree-safe: uses temp dir instead of git stash (stash is shared across worktrees)
+#   - User-file-safe: git clean excludes .env*, *.local, IDE configs
 #
 # Usage: revert-experiment.sh [working_dir]
 
@@ -32,9 +33,20 @@ for f in "${PROTECTED_FILES[@]}"; do
   fi
 done
 
-# Revert all changes
-git checkout -- . 2>/dev/null || true
-git clean -fd 2>/dev/null || true
+# Step 1: Revert all tracked file modifications
+git restore . 2>/dev/null || git checkout -- . 2>/dev/null || true
+
+# Step 2: Remove untracked files created by the experiment, but protect
+# user's local config files, IDE settings, and OS artifacts
+git clean -fd \
+  -e ".env*" \
+  -e "*.local" \
+  -e ".idea" \
+  -e ".vscode" \
+  -e ".fleet" \
+  -e "*.sublime-*" \
+  -e ".DS_Store" \
+  2>/dev/null || true
 
 # Restore protected files from backup
 for f in "${PROTECTED_FILES[@]}"; do

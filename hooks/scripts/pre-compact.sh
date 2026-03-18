@@ -5,12 +5,20 @@
 
 set -euo pipefail
 
-HOOK_INPUT=$(cat)
-CWD=$(echo "$HOOK_INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cwd',''))" 2>/dev/null || echo "")
+# Source shared utilities
+source "${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}/lib/lib.sh"
+
+read_hook_input
 
 # Only act if autoresearch is active
-STATE_FILE="${CWD}/.claude/autoresearch-loop.local.md"
+STATE_FILE=$(state_file_path "$HOOK_CWD")
 if [ ! -f "$STATE_FILE" ]; then
+  exit 0
+fi
+
+# Check active flag
+parse_state_file "$STATE_FILE"
+if [ "$STATE_ACTIVE" != "true" ]; then
   exit 0
 fi
 
